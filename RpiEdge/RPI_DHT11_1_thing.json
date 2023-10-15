@@ -1,0 +1,5 @@
+{
+    "thingName": "RPI_DHT11_1",
+    "thingArn": "arn:aws:iot:us-east-1:786897582329:thing/RPI_DHT11_1",
+    "thingId": "cf6a08e2-1772-4317-9a25-18ea43a9eba9"
+}

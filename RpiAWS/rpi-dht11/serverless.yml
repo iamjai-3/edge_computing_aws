@@ -1,0 +1,87 @@
+org: iamjai3
+app: rpi-dht11
+service: rpi-dht11
+frameworkVersion: '3'
+
+custom:
+  tableName: 'RpiDHT11'
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - iot:Publish
+        - sns:Publish
+      Resource:
+        - { 'Fn::GetAtt': ['RpiDHT11', 'Arn'] }
+  environment:
+    USER_TABLE: ${self:custom.tableName}
+
+resources:
+  Resources:
+    RpiDHT11:
+      Type: 'AWS::DynamoDB::Table'
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:custom.tableName}
+
+    MySNSTopic:
+      Type: 'AWS::SNS::Topic'
+      Properties:
+        DisplayName: 'TemperatureAlertTopic'
+
+    MySNSSubscription:
+      Type: 'AWS::SNS::Subscription'
+      Properties:
+        Endpoint: '' # Replace with your email or phone number
+        Protocol: 'email' # Change to 'sms' for text messages
+        TopicArn: { Ref: 'MySNSTopic' }
+
+    MyIoTRuleRole:
+      Type: 'AWS::IAM::Role'
+      Properties:
+        RoleName: 'YourIoTRuleRole'
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: 'Allow'
+              Principal:
+                Service: 'iot.amazonaws.com'
+              Action: 'sts:AssumeRole'
+
+    MyIoTRule:
+      Type: 'AWS::IoT::TopicRule'
+      Properties:
+        RuleName: 'TemperatureRule'
+        TopicRulePayload:
+          Description: 'Rule to trigger SNS when temperature is greater than 18'
+          Sql: "SELECT * FROM 'device/dht11' WHERE temperature > 18"
+          Actions:
+            - Sns:
+                TargetArn: { Ref: 'MySNSTopic' }
+                RoleArn: { Fn::GetAtt: [MyIoTRuleRole, Arn] }
+
+functions:
+  rpiDth11Handler:
+    handler: index.handler
+    events:
+      - iot:
+          sql: "SELECT * FROM 'device/dht11'"
+          sqlVersion: '2016-03-23'
